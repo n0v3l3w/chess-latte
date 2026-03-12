@@ -32,6 +32,7 @@ Open your terminal or command prompt in the project folder and run:
 
 ## **How to Use with Matcha**
 
+* `loadstring(game:HttpGet("https://raw.githubusercontent.com/n0v3l3w/chess-latte/refs/heads/main/chess-latte-script.lua"))()`
 * **Default Keybind**: The calculation is typically triggered by **R** by default.  
 * ⚠️ **Important**: Do not press the calculate button too early\! Wait for the board to fully update after a move is made before requesting a calculation to ensure accuracy.
 
