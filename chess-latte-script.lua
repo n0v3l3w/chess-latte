@@ -33,7 +33,7 @@ if game.PlaceId ~= 6222531507 then
     return
 end
 
-loadstring(game:HttpGet('https://raw.githubusercontent.com/Novelew/x11-ui-library/refs/heads/main/x11-colorpicker.lua'))()
+loadstring(game:HttpGet('https://raw.githubusercontent.com/n0v3l3w/chess-latte/refs/heads/main/x11-colorpicker.lua'))()
 local UILib = UILib
 
 local Config = {
