@@ -11,6 +11,7 @@ UILib:CreateSettingsTab(<string> customName) -> tabName, sectionName, sectionNam
 
 UILib:Checkbox(<tabName>, <sectionName>, <string> label, <boolean> defaultValue, <function> callback)
 UILib:Slider(<tabName>, <sectionName>, <string> label, <number> defaultValue, <function> callback, <number> min, <number> max, <number> step, <string> appendix)
+UILib:Input(<tabName>, <sectionName>, <string> label, <number|string> defaultValue, <function> callback, <string> placeholder, <number> maxlen, <boolean> numbersOnly)
 UILib:Choice(<tabName>, <sectionName>, <string> label, <table> defaultValue, <function | nil> callback, <table> choices, <boolean> multi)
 UILib:Colorpicker(<tabName>, <sectionName>, <string> label, <table[3]> defaultValue, <function | nil> callback)
 UILib:Keybind(<tabName>, <sectionName>, <string> label, <string(Keycode)> defaultValue, <function | nil> callback, <string: 'Hold', 'Toggle', 'Always'> mode)
@@ -19,56 +20,6 @@ UILib:ToggleMenu(boolean)
 UILib:ToggleWatermark(boolean)
 UILib:Step()
 UILib:Destroy()
-
-Example usage:
-local function getPing(raw)
-    local pingAddress = game:FindFirstChild("Stats"):FindFirstChild("PerformanceStats"):FindFirstChild("Ping").Address
-    local ping = memory_read("double", pingAddress + 0xC8)
-
-    if raw then
-        return ping
-    end
-
-    return ("Ping: %sms"):format(math.floor(ping))
-end
-
-local UILib = require('workspace/x11-colorpicker.lua') -- import however you prefer!
-local myGui = UILib.new('chatgpthaxx', Vector2.new(320, 380), {getPing})
-
-local visualsTab = myGui:Tab('Visuals')
-local espSection = myGui:Section(visualsTab, 'General')
-myGui:Checkbox(visualsTab, espSection, 'Master', false, function(state)
-    printl('ESP:', state)
-end)
-myGui:Slider(visualsTab, espSection, 'Distance', 2500, function(value)
-    printl('ESP distance:', value)
-end, 100, 2500, 100, ' studs')
-
-local playerEspSection = myGui:Section(visualsTab, 'Players')
-myGui:Checkbox(visualsTab, playerEspSection, 'BBox', false, function(state)
-    printl('BBox:', state)
-end)
-myGui:Checkbox(visualsTab, playerEspSection, 'Name', false, function(state)
-    printl('Name:', state)
-end)
-myGui:Checkbox(visualsTab, playerEspSection, 'Distance', false, function(state)
-    printl('Distance:', state)
-end)
-myGui:Choice(visualsTab, playerEspSection, 'Flags', {}, function(values)
-    printl('Flags:', table.concat(values, ', '))
-end, {'Health', 'Humanoid state'}, true)
-myGui:Colorpicker(visualsTab, playerEspSection, 'Box color', {255, 0, 0}, nil)
-myGui:Keybind(visualsTab, playerEspSection, 'Toggle', 'm3', nil, 'Toggle')
-myGui:CreateSettingsTab()
-local running = true
-myGui:Checkbox(visualsTab, playerEspSection, 'Unload', false, function(state)
-    running = false
-end)
-while running do
-    myGui:Step()
-    wait(0.0015)
-end
-myGui:Destroy()
 
 ]]
 
@@ -132,18 +83,18 @@ local function destroyAllDrawings(drawingsTable)
 end
 
 function UILib.new(name, size, watermarkActivity)
-    repeat -- iskeypressed is halting our matcha menu button
+    repeat
         wait(1/9999)
     until isrbxactive()
 
     local self = setmetatable({}, UILib)
 
-    -- input
     self._inputs = {
         ['m1'] = { id = 0x01, held = false, click = false },
         ['m2'] = { id = 0x02, held = false, click = false },
         ['mb'] = { id = 0x04, held = false, click = false },
         ['unbound'] = { id = 0x08, held = false, click = false },
+        ['backspace'] = { id = 0x08, held = false, click = false },
         ['tab'] = { id = 0x09, held = false, click = false },
         ['enter'] = { id = 0x0D, held = false, click = false },
         ['shift'] = { id = 0x10, held = false, click = false },
@@ -199,8 +150,6 @@ function UILib.new(name, size, watermarkActivity)
         ['x'] = { id = 0x58, held = false, click = false },
         ['y'] = { id = 0x59, held = false, click = false },
         ['z'] = { id = 0x5A, held = false, click = false },
-        -- ['lwin'] = { id = 0x5B, held = false, click = false },
-        -- ['rwin'] = { id = 0x5C, held = false, click = false },
         ['numpad0'] = { id = 0x60, held = false, click = false },
         ['numpad1'] = { id = 0x61, held = false, click = false },
         ['numpad2'] = { id = 0x62, held = false, click = false },
@@ -261,7 +210,6 @@ function UILib.new(name, size, watermarkActivity)
     self._clipboard_color = nil
     self._tick = os.clock()
 
-    -- user
     self.identity = name
     self._watermark_activity = watermarkActivity
     self.x = 20
@@ -269,7 +217,6 @@ function UILib.new(name, size, watermarkActivity)
     self.w = size and size.x or 300
     self.h = size and size.y or 400
 
-    -- theme
     self._color_accent = Color3.fromRGB(255, 127, 0)
     self._color_text = Color3.fromRGB(255, 255, 255)
     self._color_crust = Color3.fromRGB(0, 0, 0)
@@ -277,13 +224,11 @@ function UILib.new(name, size, watermarkActivity)
     self._color_surface = Color3.fromRGB(38, 38, 38)
     self._color_overlay = Color3.fromRGB(76, 76, 76)
 
-    -- styling
     self._title_h = 25
     self._tab_h = 20
     self._padding = 6
     self._gradient_detail = 80
 
-    -- menu base
     local base = Drawing.new('Square')
     base.Filled = true
     base.Color = self._color_surface
@@ -307,7 +252,6 @@ function UILib.new(name, size, watermarkActivity)
     title.Outline = true
     title.Color = self._color_text
 
-    -- watermark
     local watermarkBase = Drawing.new('Square')
     watermarkBase.Filled = true
     watermarkBase.Color = self._color_surface
@@ -351,7 +295,6 @@ end
 function UILib:_RemoveDropdown()
     if self._active_dropdown then
         local dropdownDraws = self._active_dropdown['_drawings']
-
         destroyAllDrawings(dropdownDraws)
         self._active_dropdown = nil
     end
@@ -360,7 +303,6 @@ end
 function UILib:_RemoveColorpicker()
     if self._active_colorpicker then
         local colorpickerDraws = self._active_colorpicker['_drawings']
-
         destroyAllDrawings(colorpickerDraws)
         self._active_colorpicker = nil
     end
@@ -391,16 +333,13 @@ function UILib:_SpawnDropdown(default, choices, multi, callback, position, width
         entry.Outline = true
         entry.Color = self._color_text
         entry.Text = entryValue
-
         table.insert(drawings, entry)
     end
 
-    -- convert to dictionary
     local choiceHash = {}
     for _, choice in ipairs(choices) do
         choiceHash[choice] = false
     end
-
     for _, default_ in ipairs(default) do
         choiceHash[default_] = true
     end
@@ -420,7 +359,6 @@ function UILib:_SpawnColorpicker(default, colorLabel, callback)
         self:_RemoveColorpicker()
     end
 
-    -- base
     local base = Drawing.new('Square')
     base.Filled = true
     base.Color = self._color_surface
@@ -450,15 +388,12 @@ function UILib:_SpawnColorpicker(default, colorLabel, callback)
 
     local drawings = { base, crust, border, titleBar, label, preview }
 
-    -- gradients
     for _ = 1, self._gradient_detail * 3 do
         local segment = Drawing.new('Square')
         segment.Filled = true
-
         table.insert(drawings, segment)
     end
 
-    -- cursors
     local cursorCrustPrimary = Drawing.new('Circle')
     cursorCrustPrimary.Filled = false
     cursorCrustPrimary.Thickness = 3
@@ -622,10 +557,7 @@ function UILib:Checkbox(tabName, sectionName, label, defaultValue, callback)
     text.Text = label
 
     self:_AddToSection(tabName, sectionName, 'checkbox', defaultValue, callback, {
-        outline,
-        check,
-        checkShadow,
-        text
+        outline, check, checkShadow, text
     })
 end
 
@@ -653,16 +585,52 @@ function UILib:Slider(tabName, sectionName, label, defaultValue, callback, min, 
     text.Text = label
 
     self:_AddToSection(tabName, sectionName, 'slider', defaultValue, callback, {
-        outline,
-        fill,
-        fillShadow,
-        value,
-        text
+        outline, fill, fillShadow, value, text
     }, {
         ['min'] = min,
         ['max'] = max,
         ['step'] = step,
         ['appendix'] = appendix
+    })
+end
+
+-- Input widget: a clickable text field that captures keyboard input.
+-- numbersOnly = true restricts to digit characters (good for node/depth values).
+-- Fires callback(value) on Enter or when clicking outside. value is a number if
+-- numbersOnly, otherwise a string.
+function UILib:Input(tabName, sectionName, label, defaultValue, callback, placeholder, maxlen, numbersOnly)
+    local outline = Drawing.new('Square')
+    outline.Color = self._color_crust
+    outline.Thickness = 1
+    outline.Filled = false
+
+    local fill = Drawing.new('Square')
+    fill.Color = self._color_crust
+    fill.Filled = true
+
+    local textDraw = Drawing.new('Text')
+    textDraw.Color = self._color_text
+    textDraw.Outline = true
+    textDraw.Text = ''
+
+    local labelDraw = Drawing.new('Text')
+    labelDraw.Color = self._color_text
+    labelDraw.Outline = true
+    labelDraw.Text = label
+
+    -- blinking cursor bar
+    local cursorBar = Drawing.new('Square')
+    cursorBar.Color = self._color_accent
+    cursorBar.Filled = true
+
+    self:_AddToSection(tabName, sectionName, 'input', defaultValue, callback, {
+        outline, fill, textDraw, labelDraw, cursorBar
+    }, {
+        ['placeholder']   = placeholder or '',
+        ['maxlen']        = maxlen or 10,
+        ['numbersOnly']   = numbersOnly == nil and true or numbersOnly,
+        ['_buffer']       = tostring(defaultValue or ''),
+        ['_focused']      = false,
     })
 end
 
@@ -692,11 +660,7 @@ function UILib:Choice(tabName, sectionName, label, defaultValue, callback, choic
     text.Text = label
 
     self:_AddToSection(tabName, sectionName, 'choice', defaultValue, callback, {
-        outline,
-        fill,
-        values,
-        expand,
-        text
+        outline, fill, values, expand, text
     }, {
         ['choices'] = choices,
         ['multi'] = multi
@@ -723,10 +687,7 @@ function UILib:Colorpicker(tabName, sectionName, label, defaultValue, callback)
     text.Text = label
 
     self:_AddToSection(tabName, sectionName, 'colorpicker', defaultValue, callback, {
-        outline,
-        fill,
-        shadow,
-        text
+        outline, fill, shadow, text
     }, {
         ['label'] = label
     })
@@ -747,10 +708,8 @@ function UILib:Button(tabName, sectionName, label, callback)
     text.Outline = true
     text.Text = label
 
-    self:_AddToSection(tabName, sectionName, 'button', defaultValue, callback, {
-        outline,
-        fill,
-        text
+    self:_AddToSection(tabName, sectionName, 'button', nil, callback, {
+        outline, fill, text
     }, {
         ['label'] = label
     })
@@ -776,10 +735,7 @@ function UILib:Keybind(tabName, sectionName, label, defaultValue, callback, mode
     key.Outline = true
 
     self:_AddToSection(tabName, sectionName, 'key', defaultValue, callback, {
-        text,
-        outline,
-        fill,
-        key
+        text, outline, fill, key
     }, {
         ['mode'] = mode or 'Hold',
         ['_listening'] = false,
@@ -860,8 +816,35 @@ function UILib:CreateSettingsTab(customName)
     return menuTab, menuSettings, menuTheme
 end
 
+-- Digits used for input widget key capture (main row + numpad)
+local INPUT_DIGITS = {'0','1','2','3','4','5','6','7','8','9'}
+local NUMPAD_MAP = {
+    ['numpad0']='0', ['numpad1']='1', ['numpad2']='2', ['numpad3']='3',
+    ['numpad4']='4', ['numpad5']='5', ['numpad6']='6', ['numpad7']='7',
+    ['numpad8']='8', ['numpad9']='9',
+}
+local ALPHA_KEYS = {
+    'a','b','c','d','e','f','g','h','i','j','k','l','m',
+    'n','o','p','q','r','s','t','u','v','w','x','y','z'
+}
+
+local function commitInput(sectionItem)
+    local buf = sectionItem['_buffer']
+    local numOnly = sectionItem['numbersOnly']
+    local cb = sectionItem['callback']
+    if numOnly then
+        local n = tonumber(buf)
+        if n ~= nil then
+            sectionItem['value'] = n
+            if cb then cb(n) end
+        end
+    else
+        sectionItem['value'] = buf
+        if cb then cb(buf) end
+    end
+end
+
 function UILib:Step()
-    -- our input stuff
     local deltaTime = math.max(os.clock() - self._tick, 0.0035)
     local mousePos = getMousePos()
 
@@ -874,12 +857,12 @@ function UILib:Step()
             else
                 self._inputs[keycode]['click'] = false
             end
-
             self._inputs[keycode]['held'] = true
         else
             self._inputs[keycode]['held'] = false
         end
     end
+
     local menuOpen = self._open
     local clickFrame = menuOpen and self._inputs['m1'].click
     local ctxFrame = menuOpen and self._inputs['m2'].click
@@ -891,7 +874,7 @@ function UILib:Step()
 
     setrobloxinput(not menuOpen)
 
-    -- draw watermark
+    -- watermark
     local watermarkBase = self._tree['_drawings'][6]
     local watermarkCursor = self._tree['_drawings'][7]
     local watermarkCrust = self._tree['_drawings'][8]
@@ -949,7 +932,7 @@ function UILib:Step()
         watermarkTitle.Visible = false
     end
 
-    -- draw colorpicker
+    -- colorpicker
     if self._active_colorpicker then
         local colorpickerDraws = self._active_colorpicker['_drawings']
         local colorpickerBase = colorpickerDraws[1]
@@ -1095,7 +1078,7 @@ function UILib:Step()
         clickFrame = false
     end
 
-    -- draw dropdown
+    -- dropdown
     if self._active_dropdown then
         local dropdownChoices = self._active_dropdown['choices']
         local dropdownIsMulti = self._active_dropdown['multi']
@@ -1125,7 +1108,6 @@ function UILib:Step()
 
             if clickFrame and self._IsMouseWithinBounds(choicePos, choiceSize) then
                 dropdownCancel = not dropdownIsMulti
-                
                 if not dropdownIsMulti then
                     for choiceName, _ in pairs(dropdownChoices) do
                         dropdownChoices[choiceName] = false
@@ -1135,12 +1117,11 @@ function UILib:Step()
                 dropdownChoices[choice] = not choiceValue
                 if dropdownCallback then
                     local returnedValue = {}
-                    for choiceName, choiceValue in pairs(dropdownChoices) do
-                        if choiceValue == true then
+                    for choiceName, cv in pairs(dropdownChoices) do
+                        if cv == true then
                             table.insert(returnedValue, choiceName)
                         end
                     end
-
                     dropdownCallback(returnedValue)
                 end
             end
@@ -1174,7 +1155,7 @@ function UILib:Step()
         clickFrame = false
     end
 
-    -- draw menu base
+    -- menu base
     local uiCrust = self._tree['_drawings'][1]
     local uiBorder = self._tree['_drawings'][2]
     local uiBase = self._tree['_drawings'][3]
@@ -1211,7 +1192,6 @@ function UILib:Step()
     uiTitle.Visible = childrenVisible
     uiTitle.Color = self._color_text
 
-    -- input handling for menu dragging
     local titleOrigin = Vector2.new(self.x, self.y)
     local titleSize = Vector2.new(self.w, self._title_h)
 
@@ -1229,11 +1209,10 @@ function UILib:Step()
         else
             self._dragging = false
         end
-
         clickFrame = false
     end
 
-    -- draw tabs
+    -- tabs
     local numTabs = #self._tree['_tabs']
     for tabIndex, tab in ipairs(self._tree['_tabs']) do
         local tabName = tab['name']
@@ -1273,19 +1252,17 @@ function UILib:Step()
         tabText.Visible = childrenVisible
         tabText.Color = self._color_text
 
-        -- input handling for tabs
         if clickFrame and self._IsMouseWithinBounds(tabPosition, tabSize) then
             self._active_tab = tabName
         end
 
-        -- draw sections
         local totalSectionH_0 = self._padding
         local totalSectionH_1 = self._padding
         for sectionIndex, section in ipairs(tab['_sections']) do
             local sectionDraws = section['_drawings']
             local sectionItems = section['_items']
 
-            -- keybind processing
+            -- keybind processing (always, even when tab closed)
             for _, keybind in ipairs(sectionItems) do
                 local itemType = keybind['type']
                 local itemValue = keybind['value']
@@ -1296,8 +1273,8 @@ function UILib:Step()
                         local keyMode = keybind['mode']
                         local keyState = keybind['state']
                         if keyMode == 'Hold' then
-                            keyState = self._inputs[itemValue]['held']
-                        elseif keyMode == 'Toggle' and self._inputs[itemValue]['click'] then
+                            keyState = self._inputs[itemValue] and self._inputs[itemValue]['held']
+                        elseif keyMode == 'Toggle' and self._inputs[itemValue] and self._inputs[itemValue]['click'] then
                             keyState = not keyState
                         elseif keyMode == 'Always' then
                             keyState = true
@@ -1305,7 +1282,6 @@ function UILib:Step()
 
                         if keyState ~= keybind['state'] then
                             itemCallback(keyState)
-
                             keybind['state'] = keyState
                         end
                     end
@@ -1322,7 +1298,6 @@ function UILib:Step()
                     self.y + self._title_h + self._tab_h + self._padding * 2 + (opposite==1 and totalSectionH_0 or totalSectionH_1)
                 )
 
-                -- draw items
                 for _, sectionItem in ipairs(sectionItems) do
                     local itemType = sectionItem['type']
                     local itemDraws = sectionItem['_drawings']
@@ -1360,22 +1335,18 @@ function UILib:Step()
                         checkboxLabel.Visible = childrenVisible
                         checkboxLabel.Color = self._color_text
 
-                        -- handle input
                         if self._IsMouseWithinBounds(itemPosition, boxSize) then
                             checkboxOutline.Color = self._color_accent
-
                             if clickFrame then
                                 sectionItem['value'] = not sectionItem['value']
-
-                                if itemCallback then
-                                    itemCallback(sectionItem['value'])
-                                end
+                                if itemCallback then itemCallback(sectionItem['value']) end
                             end
                         else
                             checkboxOutline.Color = self._color_crust
                         end
 
                         sectionY = sectionY + boxSize.y + 8
+
                     elseif itemType == 'slider' then
                         local sliderOutline = itemDraws[1]
                         local sliderFill = itemDraws[2]
@@ -1412,7 +1383,7 @@ function UILib:Step()
                         sliderFill.Transparency = baseOpacity
                         sliderFill.Visible = fillVisible
                         sliderFill.Color = self._color_accent
-                        
+
                         sliderFillShadow.Position = itemPosition + Vector2.new(1, labelH + sliderH + 7)
                         sliderFillShadow.Size = Vector2.new(math.max(sliderW * fillPercent - 2, 0), 2)
                         sliderFillShadow.Transparency = 0.15 * baseOpacity
@@ -1425,25 +1396,18 @@ function UILib:Step()
                         sliderValue.Transparency = baseOpacity
                         sliderValue.Visible = childrenVisible
 
-                        -- handle input
                         if self._IsMouseWithinBounds(itemPosition + Vector2.new(0, labelH + 10), sliderBoxSize) then
                             sliderValue.Color = self._color_accent
-
                             if m1Held then
                                 local mouseX = mousePos.x - itemPosition.x
                                 local percent = mouseX / sliderW
                                 percent = clamp(percent, 0, 1)
-
                                 local newValue = min + (max - min) * percent
                                 newValue = math.floor((newValue / step) + 0.5) * step
-
                                 newValue = math.max(min, math.min(max, newValue))
                                 if newValue ~= sectionItem['value'] then
                                     sectionItem['value'] = newValue
-
-                                    if itemCallback then
-                                        itemCallback(newValue)
-                                    end
+                                    if itemCallback then itemCallback(newValue) end
                                 end
                             end
                         else
@@ -1451,6 +1415,134 @@ function UILib:Step()
                         end
 
                         sectionY = sectionY + sliderH + 18 + labelH
+
+                    elseif itemType == 'input' then
+                        local inputOutline  = itemDraws[1]
+                        local inputFill     = itemDraws[2]
+                        local inputTextDraw = itemDraws[3]
+                        local inputLabel    = itemDraws[4]
+                        local inputCursor   = itemDraws[5]
+
+                        local inputW = sectionW - self._padding * 3
+                        local inputH = 20
+                        local inputBoxSize = Vector2.new(inputW, inputH)
+                        local _, labelH = self._GetTextBounds('')
+                        local inputBoxPos = itemPosition + Vector2.new(0, labelH + 10)
+
+                        local isFocused = sectionItem['_focused']
+
+                        -- label
+                        inputLabel.Position = itemPosition
+                        inputLabel.Text = itemDraws[4].Text  -- label text set at creation
+                        inputLabel.Transparency = baseOpacity
+                        inputLabel.Visible = childrenVisible
+                        inputLabel.Color = self._color_text
+
+                        -- box outline
+                        inputOutline.Position = inputBoxPos
+                        inputOutline.Size = inputBoxSize
+                        inputOutline.Transparency = baseOpacity
+                        inputOutline.Visible = childrenVisible
+                        inputOutline.Color = isFocused and self._color_accent or self._color_crust
+
+                        -- box fill
+                        inputFill.Position = inputBoxPos + Vector2.new(1, 1)
+                        inputFill.Size = inputBoxSize - Vector2.new(2, 2)
+                        inputFill.Transparency = baseOpacity
+                        inputFill.Visible = childrenVisible
+                        inputFill.Color = self._color_crust
+
+                        -- text content / placeholder
+                        local buf = sectionItem['_buffer']
+                        local displayStr, textColor
+                        if #buf == 0 and not isFocused then
+                            displayStr = sectionItem['placeholder']
+                            textColor = self._color_overlay
+                        else
+                            displayStr = buf
+                            textColor = self._color_text
+                        end
+                        local textW, _ = self._GetTextBounds(displayStr)
+                        inputTextDraw.Text = displayStr
+                        inputTextDraw.Position = inputBoxPos + Vector2.new(self._padding, (inputH - ESP_FONTSIZE) / 2)
+                        inputTextDraw.Transparency = baseOpacity
+                        inputTextDraw.Visible = childrenVisible
+                        inputTextDraw.Color = textColor
+
+                        -- blinking cursor bar (only when focused)
+                        local cursorBlink = isFocused and (math.floor(os.clock() * 2) % 2 == 0)
+                        local bufW, _ = self._GetTextBounds(buf)
+                        inputCursor.Position = inputBoxPos + Vector2.new(self._padding + bufW + 1, (inputH - ESP_FONTSIZE) / 2)
+                        inputCursor.Size = Vector2.new(1, ESP_FONTSIZE + 1)
+                        inputCursor.Transparency = baseOpacity
+                        inputCursor.Visible = cursorBlink and childrenVisible
+                        inputCursor.Color = self._color_accent
+
+                        -- click to focus / unfocus
+                        if clickFrame then
+                            if self._IsMouseWithinBounds(inputBoxPos, inputBoxSize) then
+                                sectionItem['_focused'] = true
+                                clickFrame = false
+                            elseif isFocused then
+                                sectionItem['_focused'] = false
+                                commitInput(sectionItem)
+                            end
+                        end
+
+                        -- keyboard capture when focused
+                        if sectionItem['_focused'] then
+                            local numOnly = sectionItem['numbersOnly']
+                            local maxlen = sectionItem['maxlen']
+
+                            -- digits (main row)
+                            for _, digit in ipairs(INPUT_DIGITS) do
+                                if self._inputs[digit] and self._inputs[digit]['click'] then
+                                    if #sectionItem['_buffer'] < maxlen then
+                                        sectionItem['_buffer'] = sectionItem['_buffer'] .. digit
+                                    end
+                                end
+                            end
+
+                            -- numpad digits
+                            for numpadKey, digit in pairs(NUMPAD_MAP) do
+                                if self._inputs[numpadKey] and self._inputs[numpadKey]['click'] then
+                                    if #sectionItem['_buffer'] < maxlen then
+                                        sectionItem['_buffer'] = sectionItem['_buffer'] .. digit
+                                    end
+                                end
+                            end
+
+                            -- alpha keys (only when not numbers-only)
+                            if not numOnly then
+                                for _, alpha in ipairs(ALPHA_KEYS) do
+                                    if self._inputs[alpha] and self._inputs[alpha]['click'] then
+                                        if #sectionItem['_buffer'] < maxlen then
+                                            sectionItem['_buffer'] = sectionItem['_buffer'] .. alpha
+                                        end
+                                    end
+                                end
+                            end
+
+                            -- backspace
+                            if self._inputs['backspace'] and self._inputs['backspace']['click'] then
+                                sectionItem['_buffer'] = string.sub(sectionItem['_buffer'], 1, -2)
+                            end
+
+                            -- enter to commit
+                            if self._inputs['enter'] and self._inputs['enter']['click'] then
+                                sectionItem['_focused'] = false
+                                commitInput(sectionItem)
+                            end
+
+                            -- esc to cancel (restore previous committed value)
+                            if self._inputs['esc'] and self._inputs['esc']['click'] then
+                                sectionItem['_focused'] = false
+                                sectionItem['_buffer'] = tostring(sectionItem['value'] or '')
+                            end
+                        end
+
+                        sectionY = sectionY + inputH + 18 + labelH
+
                     elseif itemType == 'choice' then
                         local choiceOutline = itemDraws[1]
                         local choiceFill = itemDraws[2]
@@ -1499,41 +1591,33 @@ function UILib:Step()
                         choiceExpand.Visible = childrenVisible
                         choiceExpand.Color = self._color_text
 
-                        -- handle input
                         if self._IsMouseWithinBounds(choiceBoxPosition, choiceBoxSize) then
                             choiceOutline.Color = self._color_accent
-
                             if clickFrame then
                                 local dropdownCallback = function(newValues)
                                     sectionItem['value'] = newValues
-
-                                    if itemCallback then
-                                        itemCallback(sectionItem['value'])
-                                    end
+                                    if itemCallback then itemCallback(sectionItem['value']) end
                                 end
-
                                 self:_SpawnDropdown(itemValue, choices, multi, dropdownCallback, choiceBoxPosition + Vector2.new(0, choiceH), choiceW)
                             elseif ctxFrame then
                                 local dropdownCallback = function(_newValues)
                                     sectionItem['value'] = {}
                                     itemCallback(sectionItem['value'])
                                 end
-
                                 self:_SpawnDropdown({}, {'Clear'}, false, dropdownCallback, mousePos, 60)
-
                             end
                         else
                             choiceOutline.Color = self._color_crust
                         end
 
                         sectionY = sectionY + choiceH + 18 + labelH
+
                     elseif itemType == 'button' then
                         local buttonOutline = itemDraws[1]
                         local buttonFill = itemDraws[2]
                         local buttonLabel = itemDraws[3]
 
                         local buttonText = sectionItem['label']
-
                         local buttonTextW, buttonTextH = self._GetTextBounds(buttonText)
                         local buttonBoxSize = Vector2.new(buttonTextW + self._padding * 2, 20)
                         buttonLabel.Position = itemPosition + Vector2.new(self._padding, 4)
@@ -1552,18 +1636,17 @@ function UILib:Step()
                         buttonFill.Visible = childrenVisible
                         buttonFill.Color = self._color_crust
 
-                        -- handle input
                         if self._IsMouseWithinBounds(itemPosition, buttonBoxSize) then
                             if clickFrame and itemCallback then
                                 itemCallback(sectionItem['value'])
                             end
-
                             buttonOutline.Color = self._color_accent
                         else
                             buttonOutline.Color = self._color_crust
                         end
 
                         sectionY = sectionY + 22 + buttonTextH
+
                     elseif itemType == 'colorpicker' then
                         local colorpickerOutline = itemDraws[1]
                         local colorpickerFill = itemDraws[2]
@@ -1594,17 +1677,14 @@ function UILib:Step()
                         colorpickerLabel.Visible = childrenVisible
                         colorpickerLabel.Color = self._color_text
 
-                        -- handle input
                         if self._IsMouseWithinBounds(boxPosition, boxSize) then
                             if clickFrame then
                                 local colorpickerCallback = function(newColor)
                                     sectionItem['value'] = newColor
-
                                     if itemCallback then
-                                        itemCallback( Color3.fromRGB(unpack(sectionItem['value'])) )
+                                        itemCallback(Color3.fromRGB(unpack(sectionItem['value'])))
                                     end
                                 end
-
                                 self:_SpawnColorpicker(sectionItem['value'], sectionItem['label'], colorpickerCallback)
                             elseif ctxFrame then
                                 self:_SpawnDropdown({}, {'Copy', 'Paste'}, false, function (values)
@@ -1622,13 +1702,14 @@ function UILib:Step()
                         end
 
                         sectionY = sectionY + boxSize.y + 10
+
                     elseif itemType == 'key' then
                         local keyLabel = itemDraws[1]
                         local keyOutline = itemDraws[2]
                         local keyFill = itemDraws[3]
                         local keyText = itemDraws[4]
 
-                        local buttonText = sectionItem['_listening'] == true and '...' or itemValue:upper()
+                        local buttonText = sectionItem['_listening'] == true and '...' or (sectionItem['value'] or 'unbound'):upper()
                         local buttonTextW, buttonTextH = self._GetTextBounds(buttonText)
                         local buttonBoxSize = Vector2.new(buttonTextW + self._padding * 2, 20)
                         local buttonPosition = itemPosition + Vector2.new(sectionW - buttonBoxSize.x - self._padding * 3, 0)
@@ -1654,13 +1735,11 @@ function UILib:Step()
                         keyLabel.Visible = childrenVisible
                         keyLabel.Color = self._color_text
 
-                        -- handle input
                         if self._IsMouseWithinBounds(buttonPosition, buttonBoxSize) then
                             if clickFrame then
                                 sectionItem['_listening'] = true
                                 self._inputs['m1']['click'] = false
                             end
-
                             keyOutline.Color = self._color_accent
                         else
                             keyOutline.Color = self._color_crust
@@ -1671,17 +1750,16 @@ function UILib:Step()
                                 if inputData['click'] then
                                     sectionItem['value'] = keycode
                                     sectionItem['_listening'] = false
-                                    
                                     break
                                 end
-                            end 
+                            end
                         end
 
                         sectionY = sectionY + 22 + buttonTextH
                     end
                 end
 
-                -- section core
+                -- section chrome
                 local sectionBackdrop = sectionDraws[1]
                 local sectionCrust = sectionDraws[2]
                 local sectionBorder = sectionDraws[3]
@@ -1714,10 +1792,7 @@ function UILib:Step()
                     totalSectionH_1 = totalSectionH_1 + sectionY
                 end
             else
-                -- tab is not active
                 undrawAll(sectionDraws)
-
-                -- and its items
                 for _, sectionItem in ipairs(sectionItems) do
                     undrawAll(sectionItem['_drawings'])
                 end
@@ -1725,21 +1800,17 @@ function UILib:Step()
         end
     end
 
-    -- finalize all input
     self._tick = os.clock()
 end
 
 function UILib:Destroy()
-    -- remove core
     for _, drawing in pairs(self._tree['_drawings']) do
         drawing:Remove()
     end
 
-    -- remove dropdown
     self:_RemoveDropdown()
     self:_RemoveColorpicker()
 
-    -- remove tree
     for _, tab in pairs(self._tree['_tabs']) do
         if tab['_drawings'] then
             for _, drawing in pairs(tab['_drawings']) do
@@ -1752,7 +1823,7 @@ function UILib:Destroy()
                 for _, drawing in pairs(section['_drawings']) do
                     drawing:Remove()
                 end
-                
+
                 if section._items then
                     for _, item in pairs(section._items) do
                         for _, drawing in pairs(item['_drawings']) do
