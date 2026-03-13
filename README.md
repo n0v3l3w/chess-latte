@@ -27,7 +27,7 @@ Open your terminal or command prompt in the project folder and run:
    `python main.py`
 
 2. **Select Stockfish**: A file picker will appear. Select your downloaded Stockfish executable (.exe on Windows).  
-3. **Configure Engine**: You will be prompted for Hash and Thread counts. You can press **Enter** to leave these at default.  
+3. **Configure Engine**: You will be prompted for RAM and Thread counts.
 4. **Server Ready**: Once you see Server started at http://localhost:3000, the script is ready to work.
 
 ## **How to Use with Matcha**
