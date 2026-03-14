@@ -36,16 +36,44 @@ end
 loadstring(game:HttpGet('https://raw.githubusercontent.com/n0v3l3w/chess-latte/refs/heads/main/x11-colorpicker.lua'))()
 local UILib = UILib
 
+local EngineInfo = {
+    name            = "Unknown",
+    is_lc0          = false,
+    nodes_multiplier = 1000,
+}
+
+local function fetchEngineInfo()
+    local ok, ret = pcall(function()
+        return game:HttpGet("http://127.0.0.1:3000/api/info")
+    end)
+
+    if not ok or not ret or ret == "" then
+        notify("Could not reach server. Make sure server.py is running!", "Server Error", 8)
+        return false
+    end
+
+    local name     = ret:match('"engine_name"%s*:%s*"([^"]+)"')
+    local is_lc0   = ret:match('"is_lc0"%s*:%s*(true)') ~= nil
+    local mult_str = ret:match('"nodes_multiplier"%s*:%s*(%d+)')
+
+    if name then EngineInfo.name = name end
+    EngineInfo.is_lc0 = is_lc0
+    if mult_str then EngineInfo.nodes_multiplier = tonumber(mult_str) end
+
+    return true
+end
+
 local Config = {
-    Depth = 17,
-    ThinkTime = 100,
+    Depth             = 17,
+    Nodes             = 17000,
+    ThinkTime         = 100,
     DisregardThinkTime = false,
 }
 
 local State = {
-    Status = "Idle",
+    Status     = "Connecting...",
     LastOutput = "",
-    Running = true,
+    Running    = true,
 }
 
 local PieceMap = {
@@ -375,6 +403,19 @@ local function updateHighlights()
     end
 end
 
+local function getSearchHint()
+    if EngineInfo.is_lc0 then
+        local n = Config.Nodes
+        if n >= 1000000 then
+            return string.format("%.1fM nodes", n / 1000000)
+        elseif n >= 1000 then
+            return string.format("%gk nodes", n / 1000)
+        end
+        return tostring(n) .. " nodes"
+    end
+    return "depth " .. tostring(Config.Depth)
+end
+
 local function findBestMove(board)
     if not board:isPlayerTurn() then return {false,"Not your turn"} end
     if board:willCauseDesync() then return {false,"Will cause desync"} end
@@ -383,16 +424,24 @@ local function findBestMove(board)
     if not fen then return {false,"Could not read board"} end
 
     local encodedFen = urlEncode(fen)
-    local url = "http://127.0.0.1:3000/api/solve?fen=" .. encodedFen
-        .. "&depth=" .. tostring(Config.Depth)
-        .. "&max_think_time=" .. tostring(Config.ThinkTime)
-        .. "&disregard_think_time=" .. tostring(Config.DisregardThinkTime)
+    local url
+
+    if EngineInfo.is_lc0 then
+        url = "http://127.0.0.1:3000/api/solve?fen=" .. encodedFen
+            .. "&nodes=" .. tostring(Config.Nodes)
+            .. "&max_think_time=" .. tostring(Config.ThinkTime)
+            .. "&disregard_think_time=" .. tostring(Config.DisregardThinkTime)
+    else
+        url = "http://127.0.0.1:3000/api/solve?fen=" .. encodedFen
+            .. "&depth=" .. tostring(Config.Depth)
+            .. "&max_think_time=" .. tostring(Config.ThinkTime)
+            .. "&disregard_think_time=" .. tostring(Config.DisregardThinkTime)
+    end
 
     local ok,ret = pcall(function() return game:HttpGet(url) end)
     if not ok then return {false,"HttpGet failed: "..tostring(ret)} end
-    if not ret or ret=="" then return {false,"Empty response from Stockfish server"} end
+    if not ret or ret=="" then return {false,"Empty response from server"} end
 
-    -- Parse response with gmatch (Matcha has no JSONDecode)
     local success = ret:match('"success"%s*:%s*(true)')
     local result  = ret:match('"result"%s*:%s*"([^"]+)"')
 
@@ -418,7 +467,7 @@ local board = Board.new()
 
 local function runBestMove()
     State.Status = "Calculating"
-    State.LastOutput = ""
+    State.LastOutput = getSearchHint()
 
     local output = findBestMove(board)
 
@@ -449,8 +498,21 @@ end
 
 destroyAllHighlights()
 
+do
+    local ok = fetchEngineInfo()
+    if not ok then
+        State.Status = "No Server"
+    else
+        State.Status = "Idle"
+    end
+end
+
 local function getStatusText()
     return "Status: "..State.Status
+end
+
+local function getEngineText()
+    return "Engine: "..EngineInfo.name
 end
 
 local function getOutputText()
@@ -458,40 +520,55 @@ local function getOutputText()
     return nil
 end
 
-local myGui = UILib.new("Chess", Vector2.new(320,380), {getStatusText,getOutputText})
+local myGui = UILib.new("Chess", Vector2.new(320,380), {getStatusText, getEngineText, getOutputText})
 
 local engineTab = myGui:Tab("Engine")
 local settingsSection = myGui:Section(engineTab,"Settings")
 
-myGui:Slider(engineTab,settingsSection,"Depth",Config.Depth,function(value)
-    Config.Depth = value
-end,1,30,1,"")
+if EngineInfo.is_lc0 then
+    Config.Nodes = 17000
+    myGui:Input(engineTab, settingsSection, "Nodes", Config.Nodes, function(value)
+        Config.Nodes = math.max(1, math.floor(value))
+    end, "e.g. 17000", 7, true)
+else
+    Config.Depth = 17
+    myGui:Slider(engineTab, settingsSection, "Depth", Config.Depth, function(value)
+        Config.Depth = value
+    end, 1, 30, 1, "")
+end
 
-myGui:Slider(engineTab,settingsSection,"Think Time",Config.ThinkTime,function(value)
+myGui:Slider(engineTab, settingsSection, "Think Time", Config.ThinkTime, function(value)
     Config.ThinkTime = value
-end,10,5000,10,"ms")
+end, 10, 5000, 10, "ms")
 
-myGui:Checkbox(engineTab,settingsSection,"Disregard Time",Config.DisregardThinkTime,function(state)
+myGui:Checkbox(engineTab, settingsSection, "Disregard Time", Config.DisregardThinkTime, function(state)
     Config.DisregardThinkTime = state
 end)
 
 local controlsSection = myGui:Section(engineTab,"Controls")
 
-myGui:Button(engineTab,controlsSection,"Calculate",function()
+myGui:Button(engineTab, controlsSection, "Calculate", function()
     task.spawn(runBestMove)
 end)
 
-myGui:Keybind(engineTab,controlsSection,"Calc Key","r",function(state)
+myGui:Keybind(engineTab, controlsSection, "Calc Key", "r", function(state)
     if state then task.spawn(runBestMove) end
-end,"Hold")
+end, "Hold")
 
-myGui:Checkbox(engineTab,controlsSection,"Unload",false,function(state)
+myGui:Checkbox(engineTab, controlsSection, "Unload", false, function(state)
     if state then State.Running = false end
 end)
 
 myGui:CreateSettingsTab()
 
-notify("Chess script loaded! Use the x11 menu to configure.", "Chess Script", 5)
+if State.Status == "No Server" then
+    notify("Could not reach server. Make sure server.py is running!", "Server Error", 8)
+else
+    local engineLabel = EngineInfo.is_lc0
+        and "Lc0 loaded! Default: 17000 nodes"
+        or  "Stockfish loaded! Default: depth 17"
+    notify(engineLabel, "Chess Script", 5)
+end
 
 while State.Running do
     updateHighlights()
