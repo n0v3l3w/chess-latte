@@ -24,7 +24,7 @@ Open your terminal or command prompt in the project folder and run:
 ## **3\. Running the Script**
 
 1. Launch the script:  
-   `python main.py`
+   `python server.py`
 
 2. **Select Stockfish**: A file picker will appear. Select your downloaded Stockfish executable (.exe on Windows).  
 3. **Configure Engine**: You will be prompted for RAM and Thread counts.
